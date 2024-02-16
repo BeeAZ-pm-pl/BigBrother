@@ -30,6 +30,7 @@ declare(strict_types=1);
 namespace shoghicp\BigBrother\utils;
 
 use phpseclib\Math\BigInteger;
+use pocketmine\block\BlockTypeIds;
 use pocketmine\item\Item;
 use shoghicp\BigBrother\network\Session;
 
@@ -90,7 +91,7 @@ class Binary extends \pocketmine\utils\Binary{
 				case 5://Slot
 					/** @var Item $item */
 					$item = $d[1];
-					if($item->getId() === 0){
+					if($item->getTypeId() === BlockTypeIds::AIR){
 						$m .= self::writeShort(-1);
 					}else{
 						$m .= self::writeShort($item->getId());

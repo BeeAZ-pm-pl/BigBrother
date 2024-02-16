@@ -29,13 +29,13 @@ declare(strict_types=1);
 
 namespace shoghicp\BigBrother;
 
+use pocketmine\crafting\CraftingGrid;
 use pocketmine\network\mcpe\protocol\types\GeneratorType;
 use pocketmine\network\mcpe\VerifyLoginTask;
-use pocketmine\Player;
 use pocketmine\Server;
 use pocketmine\event\server\DataPacketReceiveEvent;
 use pocketmine\item\Item;
-use pocketmine\inventory\CraftingGrid;
+use pocketmine\item\StringToItemParser;
 use pocketmine\math\Vector3;
 use pocketmine\network\mcpe\protocol\types\WindowTypes;
 use pocketmine\network\mcpe\protocol\ContainerOpenPacket;
@@ -50,10 +50,14 @@ use pocketmine\network\SourceInterface;
 use pocketmine\scheduler\AsyncTask;
 use pocketmine\level\Level;
 use pocketmine\level\format\Chunk;
+use pocketmine\network\mcpe\protocol\types\inventory\WindowTypes as InventoryWindowTypes;
+use pocketmine\network\NetworkInterface;
+use pocketmine\player\Player;
 use pocketmine\timings\Timings;
 use pocketmine\utils\Internet;
 use pocketmine\utils\TextFormat;
 use pocketmine\utils\UUID;
+use pocketmine\world\World;
 use shoghicp\BigBrother\network\Packet;
 use shoghicp\BigBrother\network\protocol\Login\EncryptionRequestPacket;
 use shoghicp\BigBrother\network\protocol\Login\EncryptionResponsePacket;
@@ -122,7 +126,7 @@ class DesktopPlayer extends Player{
 	 * @param int             $port
 	 * @param BigBrother      $plugin
 	 */
-	public function __construct(SourceInterface $interface, string $clientID, string $address, int $port, BigBrother $plugin){
+	public function __construct(NetworkInterface $interface, string $clientID, string $address, int $port, BigBrother $plugin){
 		$this->plugin = $plugin;
 		$this->bigBrother_clientId = $clientID;
 		parent::__construct($interface, $address, $port);
@@ -311,7 +315,7 @@ class DesktopPlayer extends Player{
 					true,
 					BigBrother::toJSON("Welcome to PocketMine-MP Server!"),
 					BigBrother::toJSON("Join to PocketMine-MP Server with Minecraft"),
-					Item::get(Item::GRASS),
+					StringToItemParser::getInstance()->parse("Grass"),
 					0,
 					[
 						1,
@@ -362,15 +366,14 @@ class DesktopPlayer extends Player{
 	public function setCraftingGrid(CraftingGrid $grid) : void{
 		parent::setCraftingGrid($grid);
 
-		if($grid->getDefaultSize() === 9){//Open Crafting Table
+		if($grid->getRecipeHeight() === 3){//Open Crafting Table
 			$pk = new ContainerOpenPacket();
 			$pk->windowId = 127;//Max WindowId
-			$pk->type = WindowTypes::WORKBENCH;
+			$pk->type = InventoryWindowTypes::WORKBENCH;
 			$pk->x = 0;
 			$pk->y = 0;
 			$pk->z = 0;
-
-			$this->dataPacket($pk);
+			$this->getNetWorkSession()->sendDataPacket($pk);
 		}
 	}
 
@@ -400,7 +403,7 @@ class DesktopPlayer extends Player{
 	 * @param Level|null $level
 	 * @override
 	 */
-	protected function unloadChunk(int $x, int $z, ?Level $level = null){
+	protected function unloadChunk(int $x, int $z, ?World $level = null): void{
 		parent::unloadChunk($x, $z, $level);
 
 		$pk = new UnloadChunkPacket();
@@ -477,16 +480,16 @@ class DesktopPlayer extends Player{
 
 	public function bigBrother_respawn() : void{
 		$pk = new PlayerPositionAndLookPacket();
-		$pk->x = $this->getX();
-		$pk->y = $this->getY();
-		$pk->z = $this->getZ();
+		$pk->x = $this->getPosition()->getX();
+		$pk->y = $this->getPosition()->getY();
+		$pk->z = $this->getPosition()->getZ();
 		$pk->yaw = 0;
 		$pk->pitch = 0;
 		$pk->flags = 0;
 		$this->putRawPacket($pk);
 
 		foreach($this->usedChunks as $index => $d){//reset chunks
-			Level::getXZ($index, $chunkX, $chunkZ);
+			World::getXZ($index, $chunkX, $chunkZ);
 			$this->unloadChunk($chunkX, $chunkZ);
 		}
 
@@ -577,6 +580,7 @@ class DesktopPlayer extends Player{
 			}
 
 			$skin = new SkinImage($skinImage);
+			$pk->clientData["PlayFabId"] = "";
 			$pk->clientData["SkinData"] = $skin->getSkinImageData(true);
 			$skinSize = $this->getSkinImageSize(strlen($skin->getRawSkinImageData(true)));
 			$pk->clientData["SkinImageHeight"] = $skinSize[0];
@@ -666,15 +670,15 @@ class DesktopPlayer extends Player{
 				 * @param Server $server
 				 * @param mixed $progress
 				 */
-				public function onProgressUpdate(Server $server, $progress){
-					$server->getLogger()->error($progress);
+				public function onProgressUpdate($progress): void{
+					Server::getInstance()->getLogger()->error($progress);
 				}
 
 				/**
 				 * @override
 				 * @param $server
 				 */
-				public function onCompletion(Server $server){
+				public function onCompletion(): void{
 					$result = $this->getResult();
 					/** @var DesktopPlayer $player */
 					$player = self::fetchLocal();
@@ -774,15 +778,15 @@ class DesktopPlayer extends Player{
 						 * @param Server $server
 						 * @param mixed $progress
 						 */
-						public function onProgressUpdate(Server $server, $progress){
-							$server->getLogger()->error($progress);
+						public function onProgressUpdate($progress): void{
+							Server::getInstance()->getLogger()->error($progress);
 						}
 
 						/**
 						 * @override
 						 * @param Server $server
 						 */
-						public function onCompletion(Server $server){
+						public function onCompletion(): void{
 							$info = $this->getResult();
 							if(is_array($info)){
 								list($plugin, $player) = self::fetchLocal();

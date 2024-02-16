@@ -30,7 +30,8 @@ declare(strict_types=1);
 namespace shoghicp\BigBrother;
 
 use pocketmine\block\Block;
-use pocketmine\level\Level;
+use pocketmine\block\VanillaBlocks;
+use pocketmine\world\World;
 use shoghicp\BigBrother\utils\Binary;
 use shoghicp\BigBrother\utils\ConvertUtils;
 use shoghicp\BigBrother\entity\ItemFrameBlockEntity;
@@ -62,7 +63,7 @@ class DesktopChunk{
 		$this->player = $player;
 		$this->chunkX = $chunkX;
 		$this->chunkZ = $chunkZ;
-		$this->level = $player->getLevel();
+		$this->level = $player->getWorld();
 		$this->groundUp = true;
 		$this->bitMap = 0;
 
@@ -70,12 +71,13 @@ class DesktopChunk{
 	}
 
 	public function generateChunk() : void{
-		$chunk = $this->level->getChunk($this->chunkX, $this->chunkZ, false);
-		$this->biomes = $chunk->getBiomeIdArray();
+		$chunk = $this->player->getWorld()->getChunk($this->chunkX, $this->chunkZ);
+		$pos = $this->player->getPosition();
+		$this->biomes = $chunk->getBiomeId($pos->x, $pos->y, $pos->z);
 
 		$payload = "";
 		foreach($chunk->getSubChunks() as $num => $subChunk){
-			if($subChunk->isEmpty()){
+			if($subChunk->isEmptyAuthoritative()){
 				continue;
 			}
 
@@ -90,12 +92,12 @@ class DesktopChunk{
 
 					$data = "";
 					for($x = 0; $x < 16; ++$x){
-						$blockId = $subChunk->getBlockId($x, $y, $z);
-						$blockData = $subChunk->getBlockData($x, $y, $z);
+						$blockId = $subChunk->getBlockStateId($x, $y, $z);
+						$blockData = $subChunk->getBlockSta($x, $y, $z);
 
-						if($blockId == Block::FRAME_BLOCK){
-							ItemFrameBlockEntity::getItemFrame($this->player->getLevel(), $x + ($this->chunkX << 4), $y + ($num << 4), $z + ($this->chunkZ << 4), $blockData, true);
-							$block = Block::AIR;
+						if($blockId == VanillaBlocks::FRAME_BLOCK()->getStateId()){
+							ItemFrameBlockEntity::getItemFrame($this->player->getWorld(), $x + ($this->chunkX << 4), $y + ($num << 4), $z + ($this->chunkZ << 4), $blockData, true);
+							$block = VanillaBlocks::AIR();
 						}else{
 							ConvertUtils::convertBlockData(true, $blockId, $blockData);
 							$block = (int) ($blockId << 4) | $blockData;
@@ -120,9 +122,8 @@ class DesktopChunk{
 			for($y = 0; $y < 16; ++$y){
 				for($z = 0; $z < 16; ++$z){
 					for($x = 0; $x < 16; $x += 2){
-						$blockLight = $subChunk->getBlockLight($x, $y, $z) | ($subChunk->getBlockLight($x + 1, $y, $z) << 4);
-						$skyLight = $subChunk->getBlockSkyLight($x, $y, $z) | ($subChunk->getBlockSkyLight($x + 1, $y, $z) << 4);
-
+						$blockLight = $subChunk->getBlockLightArray();
+						$skyLight = $subChunk->getBlockSkyLightArray();
 						$blockLightData .= chr($blockLight);
 						$skyLightData .= chr($skyLight);
 					}

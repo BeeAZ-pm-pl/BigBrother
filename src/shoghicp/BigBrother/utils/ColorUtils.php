@@ -29,9 +29,9 @@ declare(strict_types=1);
 
 namespace shoghicp\BigBrother\utils;
 
-use pocketmine\utils\Color;
+use pocketmine\color\Color;
 
-class ColorUtils extends Color{
+class ColorUtils {
 
 	// TODO this color table is not up-to-date (please update me!!)
 	/** @var array */

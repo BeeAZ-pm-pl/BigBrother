@@ -30,14 +30,18 @@ declare(strict_types=1);
 namespace shoghicp\BigBrother;
 
 use InvalidArgumentException;
-use phpseclib\Crypt\RSA;
-use phpseclib\Crypt\AES;
-
+use phpseclib3\Crypt\RSA;
+use phpseclib3\Crypt\AES;
+use phpseclib3\Crypt\Common\AsymmetricKey;
+use phpseclib3\Crypt\Common\SymmetricKey;
+use pocketmine\block\BaseSign;
 use pocketmine\plugin\PluginBase;
 use pocketmine\network\mcpe\protocol\ProtocolInfo as Info;
 use pocketmine\network\mcpe\protocol\TextPacket;
 use pocketmine\block\Block;
+use pocketmine\block\BlockTypeIds;
 use pocketmine\block\Chest;
+use pocketmine\block\WallSign;
 use pocketmine\event\player\PlayerRespawnEvent;
 use pocketmine\event\block\BlockPlaceEvent;
 use pocketmine\event\block\BlockBreakEvent;
@@ -78,7 +82,7 @@ class BigBrother extends PluginBase implements Listener{
 	/**
 	 * @override
 	 */
-	public function onEnable(){
+	public function onEnable(): void{
 		$enable = true;
 		foreach($this->getServer()->getNetwork()->getInterfaces() as $interface){
 			if($interface instanceof ProtocolInterface){
@@ -87,7 +91,7 @@ class BigBrother extends PluginBase implements Listener{
 		}
 
 		if($enable){
-			if(Info::CURRENT_PROTOCOL === 422){
+			if(Info::CURRENT_PROTOCOL === 649){
 				ConvertUtils::init();
 
 				$this->saveDefaultConfig();
@@ -104,7 +108,7 @@ class BigBrother extends PluginBase implements Listener{
 				$this->getLogger()->info("PMMP Server version: ".$this->getServer()->getVersion());
 				$this->getLogger()->info("PMMP API version: ".$this->getServer()->getApiVersion());
 
-				if(!$this->isPhar() and is_dir($this->getFile().".git")){
+				if(is_dir($this->getFile().".git")){
 					$cwd = getcwd();
 					chdir($this->getFile());
 					@exec("git describe --tags --always --dirty", $revision, $value);
@@ -122,31 +126,32 @@ class BigBrother extends PluginBase implements Listener{
 					return;
 				}
 
-				$aes = new AES(AES::MODE_CFB8);
+				$aes = new AES('cfb8');
+				$aes->setPreferredEngine('OpenSSL');
 				switch($aes->getEngine()){
-					case AES::ENGINE_OPENSSL:
+					case SymmetricKey::ENGINE_OPENSSL:
 						$this->getLogger()->info("Use openssl as AES encryption engine.");
 					break;
-					case AES::ENGINE_MCRYPT:
+					case SymmetricKey::ENGINE_MCRYPT:
 						$this->getLogger()->warning("Use obsolete mcrypt for AES encryption. Try to install openssl extension instead!!");
 					break;
-					case AES::ENGINE_INTERNAL:
+					case SymmetricKey::ENGINE_INTERNAL:
 						$this->getLogger()->warning("Use phpseclib internal engine for AES encryption, this may impact on performance. To improve them, try to install openssl extension.");
 					break;
 				}
 
-				$this->rsa = new RSA();
+				/*$this->rsa = new RSA();
 				switch(constant("CRYPT_RSA_MODE")){
-					case RSA::MODE_OPENSSL:
-						$this->rsa->configFile = $this->getDataFolder() . "openssl.cnf";
+					case SymmetricKey::ENGINE_OPENSSL:
+						/*$this->rsa->configFile = $this->getDataFolder() . "openssl.cnf";
 						$this->getLogger()->info("Use openssl as RSA encryption engine.");
 					break;
-					case RSA::MODE_INTERNAL:
+					case SymmetricKey::ENGINE_INTERNAL:
 						$this->getLogger()->info("Use phpseclib internal engine for RSA encryption.");
 					break;
-				}
+				}*/
 
-				if($aes->getEngine() === AES::ENGINE_OPENSSL or constant("CRYPT_RSA_MODE") === RSA::MODE_OPENSSL){
+				if($aes->getEngine() === AES::ENGINE_OPENSSL /*or constant("CRYPT_RSA_MODE") === SymmetricKey::ENGINE_OPENSSL*/){
 					ob_start();
 					@phpinfo();
 					preg_match_all('#OpenSSL (Header|Library) Version => (.*)#im', ob_get_contents() ?? "", $matches);
@@ -167,13 +172,12 @@ class BigBrother extends PluginBase implements Listener{
 				if($this->onlineMode){
 					$this->getLogger()->info("Server is being started in the background");
 					$this->getLogger()->info("Generating keypair");
-					$this->rsa->setPrivateKeyFormat(RSA::PRIVATE_FORMAT_PKCS1);
-					$this->rsa->setPublicKeyFormat(RSA::PUBLIC_FORMAT_PKCS8);
-					$this->rsa->setEncryptionMode(RSA::ENCRYPTION_PKCS1);
-					$keys = $this->rsa->createKey();//1024 bits
-					$this->privateKey = $keys["privatekey"];
-					$this->publicKey = $keys["publickey"];
-					$this->rsa->loadKey($this->privateKey);
+					//$this->rsa->createKey(RSA::SIGNATURE_PKCS1);
+					//$keys = 
+					$this->rsa->createKey();//1024 bits
+					//$this->privateKey = $keys["privatekey"];
+					//$this->publicKey = $keys["publickey"];
+					//$this->rsa->loadKey($this->privateKey);
 				}
 
 				$this->getLogger()->info("Starting Minecraft: PC server on ".($this->getIp() === "0.0.0.0" ? "*" : $this->getIp()).":".$this->getPort()." version ".ServerManager::VERSION);
@@ -287,13 +291,17 @@ class BigBrother extends PluginBase implements Listener{
 	 */
 	public function onPlace(BlockPlaceEvent $event) : void{
 		$player = $event->getPlayer();
-		$block = $event->getBlock();
+		$blockT = $event->getTransaction();
+		$blocks = '';
+		foreach($blockT as [$x, $y, $z, $block]){
+			$block = $blocks;
+		}
 		if($player instanceof DesktopPlayer){
-			if($block->getId() === Block::SIGN_POST or $block->getId() === Block::WALL_SIGN){
+			if($block instanceof BaseSign or $block instanceof WallSign){
 				$pk = new OpenSignEditorPacket();
-				$pk->x = $block->x;
-				$pk->y = $block->y;
-				$pk->z = $block->z;
+				$pk->x = $block->getPosition()->x;
+				$pk->y = $block->getPosition()->y;
+				$pk->z = $block->getPosition()->z;
 				$player->putRawPacket($pk);
 			}
 		}
@@ -301,17 +309,17 @@ class BigBrother extends PluginBase implements Listener{
 		if($block instanceof Chest){
 			$num_side_chest = 0;
 			for($i = 2; $i <= 5; ++$i){
-				if(($side_chest = $block->getSide($i))->getId() === $block->getId()){
+				if(($side_chest = $block->getSide($i))->getTypeId() === $block->getTypeId()){
 					++$num_side_chest;
 					for($j = 2; $j <= 5; ++$j){
-						if($side_chest->getSide($j)->getId() === $side_chest->getId()){//Cancel block placement event if side chest is already large-chest
-							$event->setCancelled();
+						if($side_chest->getSide($j)->getTypeId() === $side_chest->getTypeId()){//Cancel block placement event if side chest is already large-chest
+							$event->cancel();
 						}
 					}
 				}
 			}
 			if($num_side_chest > 1){//Cancel if there are more than one chest that can be large-chest
-				$event->setCancelled();
+				$event->cancel();
 			}
 		}
 	}
@@ -329,13 +337,13 @@ class BigBrother extends PluginBase implements Listener{
 	}
 
 	private function setupComposer() : bool{
-		$base = $this->getFile();
+		/*$base = $this->getFile();
 		$data = $this->getDataFolder();
 		$setup = $data . 'composer-setup.php';
 		$composer = $data . 'composer.phar';
 		$autoload = $base . 'vendor/autoload.php';
 
-		if(!$this->isPhar() and !is_file($autoload)){
+		if(!is_file($autoload)){
 			$this->getLogger()->info("Trying to setup composer...");
 			copy('https://getcomposer.org/installer', $setup);
 			exec(join(' ', [PHP_BINARY, $setup, '--install-dir', $data]));
@@ -350,7 +358,8 @@ class BigBrother extends PluginBase implements Listener{
 			return true;
 		}else{
 			return false;
-		}
+		}*/
+		return true;
 	}
 
 	/**
