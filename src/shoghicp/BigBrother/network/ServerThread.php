@@ -1,4 +1,5 @@
 <?php
+
 /**
  *  ______  __         ______               __    __
  * |   __ \|__|.-----.|   __ \.----..-----.|  |_ |  |--..-----..----.
@@ -32,19 +33,21 @@ namespace shoghicp\BigBrother\network;
 use ClassLoader;
 use Exception;
 use ReflectionClass;
-use Thread;
 use Threaded;
 use ThreadedLogger;
+use pocketmine\Server;
+use pmmp\thread\Thread;
+use pmmp\thread\ThreadSafeArray;
 
-class ServerThread extends Thread{
+class ServerThread extends Thread {
 
 	/** @var int */
 	protected $port;
 	/** @var string */
 	protected $interface;
-	/** @var ThreadedLogger */
+	//** @var ThreadedLogger */
 	protected $logger;
-	/** @var ClassLoader */
+	//** @var ClassLoader */
 	protected $loader;
 	/** @var string */
 	protected $data;
@@ -55,18 +58,18 @@ class ServerThread extends Thread{
 	/** @var bool */
 	protected $shutdown;
 
-	/** @var Threaded */
+	/** @var ThreadSafeArray */
 	protected $externalQueue;
-	/** @var Threaded */
+	/** @var ThreadSafeArray */
 	protected $internalQueue;
 
-	/** @var resource */
+
 	protected $externalSocket;
-	/** @var resource */
+
 	protected $internalSocket;
 
-	/**
-	 * @param ThreadedLogger $logger
+	/*
+	 * @param  ThreaderLogger $logger
 	 * @param ClassLoader    $loader
 	 * @param int             $port 1-65536
 	 * @param string          $interface
@@ -75,9 +78,9 @@ class ServerThread extends Thread{
 	 * @param bool            $autoStart
 	 * @throws Exception
 	 */
-	public function __construct(ThreadedLogger $logger, ClassLoader $loader, int $port, string $interface = "0.0.0.0", string $motd = "Minecraft: PE server", string $icon = null, bool $autoStart = true){
+	public function __construct($logger, $loader, int $port, string $interface = "0.0.0.0", string $motd = "Minecraft: PE server", string $icon = null, bool $autoStart = true) {
 		$this->port = $port;
-		if($port < 1 or $port > 65536){
+		if ($port < 1 or $port > 65536) {
 			throw new Exception("Invalid port range");
 		}
 
@@ -91,16 +94,20 @@ class ServerThread extends Thread{
 		]);
 
 		$loadPaths = [];
-		$this->addDependency($loadPaths, new ReflectionClass($logger));
+		/*$this->addDependency($loadPaths, new ReflectionClass($logger));
 		$this->addDependency($loadPaths, new ReflectionClass($loader));
-		$this->loadPaths = array_reverse($loadPaths);
+		$this->loadPaths = array_reverse($loadPaths);*/
 		$this->shutdown = false;
 
-		$this->externalQueue = new Threaded;
-		$this->internalQueue = new Threaded;
+		//$this->externalQueue = new ThreadSafeArray(); I dont known
+		//$this->internalQueue = new ThreadSafeArray();
 
-		if(($sockets = stream_socket_pair((strtoupper(substr(PHP_OS, 0, 3)) === 'WIN' ? STREAM_PF_INET : STREAM_PF_UNIX), STREAM_SOCK_STREAM, STREAM_IPPROTO_IP)) === false){
-			throw new Exception("Could not create IPC streams. Reason: ".socket_strerror(socket_last_error()));
+		if (($sockets = stream_socket_pair(
+			strtoupper(substr(PHP_OS, 0, 3)) === 'WIN' ? STREAM_PF_INET : STREAM_PF_UNIX,
+			STREAM_SOCK_STREAM,
+			0
+		)) === false) {
+			throw new Exception("Could not create IPC streams.");
 		}
 
 		$this->internalSocket = $sockets[0];
@@ -108,7 +115,8 @@ class ServerThread extends Thread{
 		$this->externalSocket = $sockets[1];
 		stream_set_blocking($this->externalSocket, false);
 
-		if($autoStart){
+
+		if ($autoStart) {
 			$this->start();
 		}
 	}
@@ -117,16 +125,16 @@ class ServerThread extends Thread{
 	 * @param array            &$loadPaths
 	 * @param ReflectionClass $dep
 	 */
-	protected function addDependency(array &$loadPaths, ReflectionClass $dep){
-		if($dep->getFileName() !== false){
+	protected function addDependency(array &$loadPaths, ReflectionClass $dep) {
+		if ($dep->getFileName() !== false) {
 			$loadPaths[$dep->getName()] = $dep->getFileName();
 		}
 
-		if($dep->getParentClass() instanceof ReflectionClass){
+		if ($dep->getParentClass() instanceof ReflectionClass) {
 			$this->addDependency($loadPaths, $dep->getParentClass());
 		}
 
-		foreach($dep->getInterfaces() as $interface){
+		foreach ($dep->getInterfaces() as $interface) {
 			$this->addDependency($loadPaths, $interface);
 		}
 	}
@@ -134,60 +142,55 @@ class ServerThread extends Thread{
 	/**
 	 * @return bool true if this thread state is shutdown
 	 */
-	public function isShutdown() : bool{
+	public function isShutdown(): bool {
 		return $this->shutdown === true;
 	}
 
-	public function shutdown(){
+	public function shutdown() {
 		$this->shutdown = true;
 	}
 
 	/**
 	 * @return int port
 	 */
-	public function getPort() : int{
+	public function getPort(): int {
 		return $this->port;
 	}
 
 	/**
 	 * @return string interface
 	 */
-	public function getInterface() : string{
+	public function getInterface(): string {
 		return $this->interface;
 	}
 
-	/**
+	/*
 	 * @return ThreadedLogger logger
 	 */
-	public function getLogger() : ThreadedLogger{
+	public function getLogger() {
 		return $this->logger;
 	}
 
-	/**
-	 * @return Threaded external queue
-	 */
-	public function getExternalQueue() : Threaded{
+	public function getExternalQueue() {
 		return $this->externalQueue;
 	}
 
-	/**
-	 * @return Threaded internal queue
-	 */
-	public function getInternalQueue() : Threaded{
+
+	public function getInternalQueue() {
 		return $this->internalQueue;
 	}
 
 	/**
 	 * @return resource internal socket
 	 */
-	public function getInternalSocket(){
+	public function getInternalSocket() {
 		return $this->internalSocket;
 	}
 
 	/**
 	 * @param string $str
 	 */
-	public function pushMainToThreadPacket(string $str) : void{
+	public function pushMainToThreadPacket(string $str): void {
 		$this->internalQueue[] = $str;
 		@fwrite($this->externalSocket, "\xff", 1); //Notify
 	}
@@ -195,37 +198,37 @@ class ServerThread extends Thread{
 	/**
 	 * @return string|null
 	 */
-	public function readMainToThreadPacket() : ?string{
+	public function readMainToThreadPacket(): ?string {
 		return $this->internalQueue->shift();
 	}
 
 	/**
 	 * @param string $str
 	 */
-	public function pushThreadToMainPacket(string $str) : void{
+	public function pushThreadToMainPacket(string $str): void {
 		$this->externalQueue[] = $str;
 	}
 
 	/**
 	 * @return string|null
 	 */
-	public function readThreadToMainPacket() : ?string{
+	public function readThreadToMainPacket(): ?string {
 		return $this->externalQueue->shift();
 	}
 
-	public function shutdownHandler() : void{
-		if($this->shutdown !== true){
-			$this->getLogger()->emergency("[ServerThread #". Thread::getCurrentThreadId() ."] ServerThread crashed!");
+	public function shutdownHandler(): void {
+		if ($this->shutdown !== true) {
+			$this->getLogger()->emergency("[ServerThread crashed!");
 		}
 	}
 
 	/**
 	 * @override
 	 */
-	public function run(){
+	public function run(): void {
 		//Load removed dependencies, can't use require_once()
-		foreach($this->loadPaths as $name => $path){
-			if(!class_exists($name, false) and !interface_exists($name, false)){
+		foreach ($this->loadPaths as $name => $path) {
+			if (!class_exists($name, false) and !interface_exists($name, false)) {
 				/** @noinspection PhpIncludeInspection */
 				require $path;
 			}
@@ -238,6 +241,6 @@ class ServerThread extends Thread{
 		new ServerManager($this, $this->port, $this->interface, $data["motd"], $data["icon"]);
 	}
 
-	public function setGarbage(){
+	public function setGarbage() {
 	}
 }

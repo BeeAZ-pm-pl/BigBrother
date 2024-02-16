@@ -33,9 +33,10 @@ use Exception;
 use SplObjectStorage;
 use const pocketmine\DEBUG;
 use pocketmine\network\mcpe\protocol\DataPacket;
+use pocketmine\network\NetworkInterface;
 use pocketmine\network\SourceInterface;
 use pocketmine\Server;
-use pocketmine\Player;
+use pocketmine\player\Player;
 use pocketmine\utils\MainLogger;
 use shoghicp\BigBrother\BigBrother;
 use shoghicp\BigBrother\DesktopPlayer;
@@ -71,7 +72,7 @@ use shoghicp\BigBrother\network\protocol\Play\Client\UseEntityPacket;
 use shoghicp\BigBrother\network\protocol\Play\Client\UseItemPacket;
 use shoghicp\BigBrother\utils\Binary;
 
-class ProtocolInterface implements SourceInterface{
+class ProtocolInterface implements NetworkInterface{
 
 	/** @var BigBrother */
 	protected $plugin;
@@ -110,8 +111,12 @@ class ProtocolInterface implements SourceInterface{
 	/**
 	 * @override
 	 */
-	public function start(){
-		$this->thread->start();
+	public function start(): void{
+		$this->thread->start(1);
+	}
+
+	public function tick() : void{
+		$this->thread->tick();
 	}
 
 	/**
@@ -124,7 +129,7 @@ class ProtocolInterface implements SourceInterface{
 	/**
 	 * @override
 	 */
-	public function shutdown(){
+	public function shutdown(): void{
 		$this->thread->pushMainToThreadPacket(chr(ServerManager::PACKET_SHUTDOWN));
 		$this->thread->join();
 	}
@@ -133,7 +138,7 @@ class ProtocolInterface implements SourceInterface{
 	 * @param string $name
 	 * @override
 	 */
-	public function setName(string $name){
+	public function setName(string $name): void{
 		$info = $this->plugin->getServer()->getQueryInformation();
 		$value = [
 			"MaxPlayers" => $info->getMaxPlayerCount(),
@@ -173,7 +178,7 @@ class ProtocolInterface implements SourceInterface{
 	 * @param Packet $packet
 	 */
 	protected function sendPacket(int $target, Packet $packet){
-		if(DEBUG > 4){
+		if(1 > 4){
 			$id = bin2hex(chr($packet->pid()));
 			if($id !== "1f"){
 				echo "[Send][Interface] 0x".bin2hex(chr($packet->pid()))."\n";
@@ -369,7 +374,7 @@ class ProtocolInterface implements SourceInterface{
 					$pk = new UseItemPacket();
 					break;
 				default:
-					if(DEBUG > 4){
+					if(1 > 4){
 						echo "[Receive][Interface] 0x".bin2hex(chr($pid))." Not implemented\n"; //Debug
 					}
 					return;
@@ -408,7 +413,7 @@ class ProtocolInterface implements SourceInterface{
 					try{
 						$this->handlePacket($this->sessionsPlayers[$id], $payload);
 					}catch(Exception $e){
-						if(DEBUG > 1){
+						if(0 > 1){
 							$logger = $this->server->getLogger();
 							if($logger instanceof MainLogger){
 								$logger->debug("DesktopPacket 0x" . bin2hex($payload));
@@ -433,7 +438,7 @@ class ProtocolInterface implements SourceInterface{
 				$player = new DesktopPlayer($this, $identifier, $address, $port, $this->plugin);
 				$this->sessions->attach($player, $id);
 				$this->sessionsPlayers[$id] = $player;
-				$this->plugin->getServer()->addPlayer($player);
+				$this->plugin->getServer()->addOnlinePlayer($player);
 			}elseif($pid === ServerManager::PACKET_CLOSE_SESSION){
 				$id = Binary::readInt(substr($buffer, $offset, 4));
 
