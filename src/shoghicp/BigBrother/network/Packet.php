@@ -115,7 +115,7 @@ abstract class Packet extends stdClass {
 		}
 		ConvertUtils::convertItemData(true, $item);
 
-		if ($item->getTypeId() === BlockTypeIds::AIR()) {
+		if ($item->getTypeId() === BlockTypeIds::AIR) {
 			$this->putShort(-1);
 		} else {
 			$stringToLegacyId = json_decode(Filesystem::fileGetContents(Path::join(\pocketmine\BEDROCK_ITEM_UPGRADE_SCHEMA_PATH, 'item_legacy_id_map.json')), true);
