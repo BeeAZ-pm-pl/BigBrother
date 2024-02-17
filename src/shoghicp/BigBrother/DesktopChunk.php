@@ -93,7 +93,7 @@ class DesktopChunk{
 					$data = "";
 					for($x = 0; $x < 16; ++$x){
 						$blockId = $subChunk->getBlockStateId($x, $y, $z);
-						$blockData = $subChunk->getBlockSta($x, $y, $z);
+						$blockData = $subChunk->getBlockStateId($x, $y, $z);
 
 						if($blockId == VanillaBlocks::FRAME_BLOCK()->getStateId()){
 							ItemFrameBlockEntity::getItemFrame($this->player->getWorld(), $x + ($this->chunkX << 4), $y + ($num << 4), $z + ($this->chunkZ << 4), $blockData, true);
